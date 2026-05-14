@@ -1,75 +1,58 @@
-import threading
-from reachy_mini import ReachyMini, ReachyMiniApp
-from reachy_mini.utils import create_head_pose
-import numpy as np
+import json
 import time
-from pydantic import BaseModel
+from pathlib import Path
+
+import requests
+from reachy_mini import ReachyMini, ReachyMiniApp
+
+
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.json"
+
+
+def load_config():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def get_updates(token, offset=None, timeout=30):
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    params = {"timeout": timeout}
+    if offset is not None:
+        params["offset"] = offset
+    response = requests.get(url, params=params, timeout=timeout + 5)
+    response.raise_for_status()
+    return response.json()
 
 
 class ReachyMiniTelegramSpeaker(ReachyMiniApp):
-    # Optional: URL to a custom configuration page for the app
-    # eg. "http://localhost:8042"
-    custom_app_url: str | None = "http://0.0.0.0:8042"
-    # Optional: specify a media backend ("gstreamer", "gstreamer_no_video", "default", etc.)
-    # On the wireless, use gstreamer_no_video to optimise CPU usage if the app does not use video streaming
-    request_media_backend: str | None = None
+    def run(self, reachy_mini: ReachyMini, stop_event):
+        config = load_config()
+        token = config["telegram_bot_token"]
+        allowed_chat_id = str(config["allowed_chat_id"])
 
-    def run(self, reachy_mini: ReachyMini, stop_event: threading.Event):
-        t0 = time.time()
+        print("App running. Waiting for Telegram messages...")
 
-        antennas_enabled = True
-        sound_play_requested = False
+        next_offset = None
 
-        # You can ignore this part if you don't want to add settings to your app. If you set custom_app_url to None, you have to remove this part as well.
-        # === vvv ===
-        class AntennaState(BaseModel):
-            enabled: bool
-
-        @self.settings_app.post("/antennas")
-        def update_antennas_state(state: AntennaState):
-            nonlocal antennas_enabled
-            antennas_enabled = state.enabled
-            return {"antennas_enabled": antennas_enabled}
-
-        @self.settings_app.post("/play_sound")
-        def request_sound_play():
-            nonlocal sound_play_requested
-            sound_play_requested = True
-
-        # === ^^^ ===
-
-        # Main control loop
         while not stop_event.is_set():
-            t = time.time() - t0
+            data = get_updates(token, offset=next_offset, timeout=30)
 
-            yaw_deg = 30.0 * np.sin(2.0 * np.pi * 0.2 * t)
-            head_pose = create_head_pose(yaw=yaw_deg, degrees=True)
+            for update in data.get("result", []):
+                next_offset = update["update_id"] + 1
 
-            if antennas_enabled:
-                amp_deg = 25.0
-                a = amp_deg * np.sin(2.0 * np.pi * 0.5 * t)
-                antennas_deg = np.array([a, -a])
-            else:
-                antennas_deg = np.array([0.0, 0.0])
+                message = update.get("message")
+                if not message:
+                    continue
 
-            if sound_play_requested:
-                print("Playing sound...")
-                reachy_mini.media.play_sound("wake_up.wav")
-                sound_play_requested = False
+                chat_id = str(message.get("chat", {}).get("id"))
+                text = message.get("text")
 
-            antennas_rad = np.deg2rad(antennas_deg)
+                if chat_id != allowed_chat_id:
+                    continue
 
-            reachy_mini.set_target(
-                head=head_pose,
-                antennas=antennas_rad,
-            )
+                if not text:
+                    continue
 
-            time.sleep(0.02)
+                print(f"Telegram message received: {text}")
 
-
-if __name__ == "__main__":
-    app = ReachyMiniTelegramSpeaker()
-    try:
-        app.wrapped_run()
-    except KeyboardInterrupt:
-        app.stop()
+            time.sleep(1)
