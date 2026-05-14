@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: rustypot
+Version: 1.4.2
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Dist: pytest ; extra == 'tests'
+Provides-Extra: tests
+License-File: LICENSE
+Home-Page: https://www.pollen-robotics.com
+Requires-Python: >=3.10
