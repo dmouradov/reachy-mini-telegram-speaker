@@ -6,3 +6,6 @@ telegram_tts*.wav
 test.wav
 tts_test.wav
 config.json
+main_v0_backup.py
+reachy_mini_telegram_speaker/antenna_test.py
+reachy_mini_telegram_speaker/emotion_test.py
