@@ -9,7 +9,10 @@ from reachy_mini import ReachyMini, ReachyMiniApp
 
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent / "config.json"
-
+STATE_SLEEPY = "sleepy"
+STATE_MESSAGE_WAITING = "message_waiting"
+STATE_TRIGGER_WAITING = "trigger_waiting"
+STATE_SPEAKING_RETURN = "speaking_return"
 
 def load_config():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -36,7 +39,18 @@ class ReachyMiniTelegramSpeaker(ReachyMiniApp):
         token = config["telegram_bot_token"]
         allowed_chat_id = str(config["allowed_chat_id"])
 
+        app_state = STATE_SLEEPY
+        pending_message = None
+        pending_update_id = None
+
+        def set_state(new_state):
+            nonlocal app_state
+            if app_state != new_state:
+                print(f"STATE: {app_state} -> {new_state}")
+                app_state = new_state
+
         print("App running. Waiting for Telegram messages...")
+        set_state(STATE_SLEEPY)
         for wav_file in Path(".").glob("telegram_tts_*.wav"):
             try:
                 wav_file.unlink()
@@ -77,36 +91,18 @@ class ReachyMiniTelegramSpeaker(ReachyMiniApp):
 
                 if not text:
                     continue
+                
+                if pending_message is not None:
+                    print("Replacing previous pending message with newer message.")
+                    
+                pending_message = text
+                pending_update_id = update["update_id"]
 
-                print(f"Speaking: {text}")
-                print(f"Update ID: {update['update_id']}")
-                print("Starting TTS generation...")
+                print(f"Stored pending message: {pending_message}")
+                print(f"Pending update ID: {pending_update_id}")
 
-                output_file = Path(f"telegram_tts_{update['update_id']}.wav")
-
-                if hasattr(reachy_mini, "media") and hasattr(reachy_mini.media, "play_sound"):
-                    subprocess.run(
-                        [sys.executable, str(helper_script), str(output_file), text],
-                        check=True,
-                    )
-
-                    print("TTS generation finished.")
-                    print(f"Just generated for text: {text}")
-
-                    if output_file.exists() and output_file.stat().st_size > 0:
-                        print(f"WAV ready: {output_file.resolve()}")
-                        print(f"WAV size: {output_file.stat().st_size} bytes")
-                        print("Starting robot playback...")
-                        reachy_mini.media.play_sound(str(output_file.resolve()))
-                        print("Playback command sent.")
-                        time.sleep(3)
-
-
-                    else:
-                        print("TTS failed: WAV file was not created.")
-                else:
-                    print("[local test mode] No robot media, skipping speech.")
-
+                set_state(STATE_MESSAGE_WAITING)
+             
             time.sleep(1)
 
 if __name__ == "__main__":
