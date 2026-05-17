@@ -1,3 +1,8 @@
+.venv/
 __pycache__/
+*.pyc
 *.egg-info/
-build/
+telegram_tts*.wav
+test.wav
+tts_test.wav
+config.json

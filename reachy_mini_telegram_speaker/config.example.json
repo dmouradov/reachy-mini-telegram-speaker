@@ -1,0 +1,5 @@
+{
+  "telegram_bot_token": "PUT_BOT_TOKEN_HERE",
+  "allowed_chat_id": "PUT_CHAT_ID_HERE",
+  "robot_host": "192.168.68.74"
+}
