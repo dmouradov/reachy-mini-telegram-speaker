@@ -9,3 +9,5 @@ config.json
 main_v0_backup.py
 reachy_mini_telegram_speaker/antenna_test.py
 reachy_mini_telegram_speaker/emotion_test.py
+antenna_test.py
+emotion_test.py
